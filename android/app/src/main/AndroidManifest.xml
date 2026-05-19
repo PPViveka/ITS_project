@@ -28,6 +28,8 @@
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="false">
 
+
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

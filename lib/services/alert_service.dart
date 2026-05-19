@@ -223,10 +223,10 @@ class AlertService extends ChangeNotifier {
       final nLng = (node[2] as num).toDouble();
       final typeIdx = (node[3] as num).toInt();
 
-      // Quick bounding box check (~3km)
+      // Quick bounding box check (expand to cover all of Bengaluru!)
       final dLat = (nLat - lat).abs();
       final dLng = (nLng - lng).abs();
-      if (dLat > 0.027 || dLng > 0.027) continue;
+      if (dLat > 0.2 || dLng > 0.2) continue; // 0.2 deg is ~22km radius
 
       final hType = typeMap[typeIdx];
       list.add(RoadHazard(

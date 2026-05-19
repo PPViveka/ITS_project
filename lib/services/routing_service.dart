@@ -33,7 +33,7 @@ class RoutingService {
     List<RoadHazard> allHazards,
   ) async {
     final url =
-        '$_baseUrl/${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}?geometries=polyline&overview=full&alternatives=true';
+        '$_baseUrl/${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}?geometries=geojson&overview=full&alternatives=true';
 
     try {
       final response = await http.get(Uri.parse(url));
@@ -46,8 +46,15 @@ class RoutingService {
       final options = <RouteOption>[];
 
       for (final r in routes) {
-        final polylineStr = r['geometry'] as String;
-        final points = _decodePolyline(polylineStr);
+        final geom = r['geometry'];
+        final coords = geom['coordinates'] as List;
+        final points = <LatLng>[];
+        for (final c in coords) {
+          final lng = (c[0] as num).toDouble();
+          final lat = (c[1] as num).toDouble();
+          points.add(LatLng(lat, lng));
+        }
+
         final dist = (r['distance'] as num).toDouble();
         final dur = (r['duration'] as num).toDouble();
 
@@ -77,12 +84,8 @@ class RoutingService {
         ));
       }
 
-      // Sort by safety score descending, then duration ascending
-      options.sort((a, b) {
-        final sc = b.safetyScore.compareTo(a.safetyScore);
-        if (sc != 0) return sc;
-        return a.duration.compareTo(b.duration);
-      });
+      // Sort by safety score descending
+      options.sort((a, b) => b.safetyScore.compareTo(a.safetyScore));
 
       return options;
     } catch (e) {
@@ -98,48 +101,5 @@ class RoutingService {
         dart_math.cos((lat2 - lat1) * p) / 2 +
         dart_math.cos(lat1 * p) * dart_math.cos(lat2 * p) * (1 - dart_math.cos((lon2 - lon1) * p)) / 2;
     return 12742 * 1000 * dart_math.asin(dart_math.sqrt(a));
-  }
-
-  /// Decodes Google's standard Polyline algorithm safely
-  static List<LatLng> _decodePolyline(String encoded) {
-    List<LatLng> points = [];
-    int index = 0, len = encoded.length;
-    int lat = 0, lng = 0;
-
-    while (index < len) {
-      int b, shift = 0, result = 0;
-      do {
-        if (index >= len) return points;
-        b = encoded.codeUnitAt(index++) - 63;
-        if (shift < 30) {
-          result |= (b & 0x1f) << shift;
-        }
-        shift += 5;
-      } while (b >= 0x20);
-      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lat += dlat;
-
-      shift = 0;
-      result = 0;
-      do {
-        if (index >= len) return points;
-        b = encoded.codeUnitAt(index++) - 63;
-        if (shift < 30) {
-          result |= (b & 0x1f) << shift;
-        }
-        shift += 5;
-      } while (b >= 0x20);
-      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lng += dlng;
-
-      final pointLat = lat / 1E5;
-      final pointLng = lng / 1E5;
-      
-      // Filter to standard global coordinates
-      if (pointLat >= -90.0 && pointLat <= 90.0 && pointLng >= -180.0 && pointLng <= 180.0) {
-        points.add(LatLng(pointLat, pointLng));
-      }
-    }
-    return points;
   }
 }

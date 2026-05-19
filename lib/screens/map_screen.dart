@@ -174,8 +174,8 @@ class _MapScreenState extends State<MapScreen> {
       final isSelected = i == _selectedRouteIdx;
       newPolylines.add(Polyline(
         points: _routes[i].points,
-        color: isSelected ? const Color(0xFF2ECC71) : const Color(0xFF8899AA).withValues(alpha: 0.5),
-        strokeWidth: isSelected ? 5 : 3,
+        color: isSelected ? const Color.fromRGBO(46, 204, 113, 1.0) : const Color.fromRGBO(136, 153, 170, 0.5),
+        strokeWidth: isSelected ? 5.0 : 3.0,
       ));
     }
     setState(() {
@@ -235,7 +235,7 @@ class _MapScreenState extends State<MapScreen> {
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
                 userAgentPackageName: 'com.speedbreakeralert.app',
               ),
               PolylineLayer(
