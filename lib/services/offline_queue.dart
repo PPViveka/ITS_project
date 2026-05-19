@@ -1,28 +1,26 @@
 // lib/services/offline_queue.dart
 //
 // Caches detections locally when offline and syncs to Firestore on reconnect.
-// Add to pubspec.yaml:
-//   shared_preferences: ^2.2.2
-//   connectivity_plus: ^5.0.2
 //
 import 'dart:async';
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import '../models/road_hazard.dart';
-import 'alert_service.dart';
 
 class OfflineQueue {
   static const _key = 'pending_hazards';
-  final AlertService _alert;
   StreamSubscription? _connSub;
 
-  OfflineQueue(this._alert) {
-    // Auto-sync when connectivity restored
+  OfflineQueue() {
     _connSub = Connectivity()
         .onConnectivityChanged
         .listen((result) {
-      if (result != ConnectivityResult.none) _flush();
+      if (result != ConnectivityResult.none) flush();
     });
   }
 
@@ -42,25 +40,36 @@ class OfflineQueue {
       'ts': DateTime.now().toIso8601String(),
     }));
     await prefs.setStringList(_key, raw);
+    debugPrint('OfflineQueue: enqueued (total ${raw.length})');
   }
 
-  Future<void> _flush() async {
+  /// Flushes queued items by writing them directly to Firestore.
+  /// Items that fail are kept for the next retry.
+  Future<void> flush() async {
+    if (Firebase.apps.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList(_key) ?? [];
     if (raw.isEmpty) return;
 
+    final db = FirebaseFirestore.instance;
     final failed = <String>[];
     for (final item in raw) {
       try {
         final m = jsonDecode(item) as Map<String, dynamic>;
-        await _alert.reportHazard(
-          lat: (m['lat'] as num).toDouble(),
-          lng: (m['lng'] as num).toDouble(),
-          type: HazardType.values[m['type'] as int],
-          severity: (m['severity'] as num).toDouble(),
-        );
-      } catch (_) {
-        failed.add(item); // Keep failed ones for retry
+        final ts = DateTime.tryParse(m['ts'] as String? ?? '') ?? DateTime.now();
+        await db.collection('hazards').doc(const Uuid().v4()).set({
+          'latitude': (m['lat'] as num).toDouble(),
+          'longitude': (m['lng'] as num).toDouble(),
+          'type': m['type'] as int,
+          'severity': (m['severity'] as num).toDouble(),
+          'reportCount': 1,
+          'firstReported': Timestamp.fromDate(ts),
+          'lastReported': Timestamp.fromDate(ts),
+          'source': 'offline-queue',
+        });
+      } catch (e) {
+        debugPrint('OfflineQueue flush: keeping item for retry ($e)');
+        failed.add(item);
       }
     }
     await prefs.setStringList(_key, failed);
@@ -71,7 +80,7 @@ class OfflineQueue {
     return (prefs.getStringList(_key) ?? []).length;
   }
 
-  Future<void> forcSync() => _flush();
+  Future<void> forceSync() => flush();
 
   void dispose() => _connSub?.cancel();
 }

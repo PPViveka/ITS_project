@@ -1,11 +1,15 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'services/alert_service.dart';
+import 'services/background_service.dart';
 import 'services/detection_service.dart';
 import 'services/location_service.dart';
+import 'services/offline_queue.dart';
+import 'services/speed_gate.dart';
 import 'screens/home_screen.dart';
 import 'screens/splash_screen.dart';
 
@@ -13,8 +17,13 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    // Anonymous sign-in so Firestore rules requiring request.auth != null pass.
+    if (FirebaseAuth.instance.currentUser == null) {
+      await FirebaseAuth.instance.signInAnonymously();
+    }
+    await BackgroundDetectionService.init();
   } catch (e) {
-    print('Firebase initialization failed: $e');
+    debugPrint('Firebase / background init failed: $e');
   }
   runApp(const SpeedBreakerApp());
 }
@@ -28,7 +37,19 @@ class SpeedBreakerApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => LocationService()),
         ChangeNotifierProvider(create: (_) => DetectionService()),
-        ChangeNotifierProvider(create: (_) => AlertService()),
+        ChangeNotifierProvider(create: (_) {
+          final queue = OfflineQueue();
+          final alert = AlertService()..offlineQueue = queue;
+          return alert;
+        }),
+        // SpeedGate depends on DetectionService + LocationService.
+        ChangeNotifierProxyProvider2<DetectionService, LocationService, SpeedGate>(
+          create: (ctx) => SpeedGate(
+            ctx.read<DetectionService>(),
+            ctx.read<LocationService>(),
+          ),
+          update: (_, __, ___, prev) => prev!,
+        ),
       ],
       child: MaterialApp(
         title: 'Road Guard',
@@ -64,7 +85,6 @@ class AppTheme {
           primary: _accent,
           secondary: _accentGlow,
           surface: _surface,
-          background: _bg,
           error: _danger,
         ),
         cardColor: _card,
@@ -92,5 +112,3 @@ class AppTheme {
         ),
       );
 }
-
-

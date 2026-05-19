@@ -46,15 +46,22 @@ class RoadHazard {
 
   factory RoadHazard.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final rawType = data['type'] as int? ?? 0;
+    final clampedType = rawType.clamp(0, HazardType.values.length - 1);
+    final first = (data['firstReported'] as Timestamp?)?.toDate();
+    final last = (data['lastReported'] as Timestamp?)?.toDate();
+    if (first == null || last == null) {
+      throw StateError('hazard ${doc.id} missing firstReported/lastReported');
+    }
     return RoadHazard(
       id: doc.id,
       latitude: (data['latitude'] as num).toDouble(),
       longitude: (data['longitude'] as num).toDouble(),
-      type: HazardType.values[data['type'] as int? ?? 0],
-      severity: (data['severity'] as num? ?? 0.5).toDouble(),
+      type: HazardType.values[clampedType],
+      severity: (data['severity'] as num? ?? 0.5).toDouble().clamp(0.0, 1.0),
       reportCount: data['reportCount'] as int? ?? 1,
-      firstReported: (data['firstReported'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      lastReported: (data['lastReported'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      firstReported: first,
+      lastReported: last,
       reportedBy: data['reportedBy'] as String?,
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/road_hazard.dart';
 import '../services/alert_service.dart';
+import '../services/location_service.dart';
 import 'home_screen.dart' show AppColors;
 
 class StatsScreen extends StatefulWidget {
@@ -22,7 +23,10 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Future<void> _load() async {
-    final data = await context.read<AlertService>().fetchAll();
+    final pos = context.read<LocationService>().current;
+    final data = await context
+        .read<AlertService>()
+        .fetchAll(pos?.latitude, pos?.longitude);
     if (mounted) setState(() { _all = data; _loading = false; });
   }
 

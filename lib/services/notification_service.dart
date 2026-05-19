@@ -1,11 +1,13 @@
 // lib/services/notification_service.dart
 import 'dart:ui';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/road_hazard.dart';
 
 class NotificationService {
   static final _plugin = FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
+  static int _detectionCounter = 0;
 
   static Future<void> init() async {
     if (_initialized) return;
@@ -21,13 +23,24 @@ class NotificationService {
     _initialized = true;
   }
 
+  static int _safeId(int raw) => raw & 0x7FFFFFFF;
+
+  static Future<({bool vibrate, bool sound})> _readPrefs() async {
+    final p = await SharedPreferences.getInstance();
+    return (
+      vibrate: p.getBool('vibrate') ?? true,
+      sound: p.getBool('sound') ?? true,
+    );
+  }
+
   static Future<void> showHazardAhead(RoadHazard hazard, double distanceM) async {
     final dist = distanceM < 1000
         ? '${distanceM.toStringAsFixed(0)} m'
         : '${(distanceM / 1000).toStringAsFixed(1)} km';
+    final prefs = await _readPrefs();
 
     await _plugin.show(
-      hazard.hashCode,
+      _safeId(hazard.id.hashCode),
       '${hazard.type.emoji} ${hazard.type.label} Ahead!',
       '$dist away • reported ${hazard.reportCount}× • slow down',
       NotificationDetails(
@@ -38,30 +51,37 @@ class NotificationService {
           importance: Importance.high,
           priority: Priority.high,
           color: const Color(0xFFFF6B2B),
+          enableVibration: prefs.vibrate,
+          playSound: prefs.sound,
         ),
-        iOS: const DarwinNotificationDetails(
+        iOS: DarwinNotificationDetails(
           presentAlert: true,
-          presentSound: true,
+          presentSound: prefs.sound,
         ),
       ),
     );
   }
 
   static Future<void> showDetected(RoadHazard hazard) async {
+    final prefs = await _readPrefs();
+    _detectionCounter = (_detectionCounter + 1) & 0x7FFFFFFF;
     await _plugin.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      _detectionCounter,
       '${hazard.type.emoji} ${hazard.type.label} Detected & Reported',
       'Magnitude: ${hazard.severity.toStringAsFixed(1)} • Location saved',
-      const NotificationDetails(
+      NotificationDetails(
         android: AndroidNotificationDetails(
           'detection_channel',
           'Detection Alerts',
           channelDescription: 'Bump/pothole auto-detection',
           importance: Importance.defaultImportance,
+          enableVibration: prefs.vibrate,
+          playSound: prefs.sound,
         ),
-        iOS: DarwinNotificationDetails(),
+        iOS: DarwinNotificationDetails(
+          presentSound: prefs.sound,
+        ),
       ),
     );
   }
 }
-

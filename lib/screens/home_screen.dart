@@ -6,6 +6,7 @@ import '../services/location_service.dart';
 import '../services/alert_service.dart';
 import '../services/notification_service.dart';
 import '../services/proximity_service.dart';
+import '../services/speed_gate.dart';
 import '../models/road_hazard.dart';
 import '../widgets/hazard_card.dart';
 import '../widgets/detection_indicator.dart';
@@ -13,6 +14,7 @@ import '../widgets/stat_chip.dart';
 import '../widgets/report_sheet.dart';
 import 'map_screen.dart';
 import 'stats_screen.dart';
+import 'settings_screen.dart';
 
 // ── AppColors theme extension ─────────────────────────────────────────────────
 @immutable
@@ -69,20 +71,22 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    final det = context.read<DetectionService>();
     final loc = context.read<LocationService>();
     final alert = context.read<AlertService>();
+    final gate = context.read<SpeedGate>();
 
     _proximity = ProximityService(loc, alert);
 
     loc.startTracking().then((_) {
+      if (!mounted) return;
       if (loc.current != null) {
         alert.listenNearby(loc.current!.latitude, loc.current!.longitude);
         _proximity.start();
       }
     });
 
-    det.onDetected = (event) async {
+    // SpeedGate forwards confirmed bumps from DetectionService.
+    gate.onConfirmed = (event) async {
       final pos = loc.current;
       if (pos == null) return;
       final sev = (event.magnitude / 25.0).clamp(0.0, 1.0);
@@ -93,14 +97,14 @@ class _HomeScreenState extends State<HomeScreen> {
         severity: sev,
       );
       await NotificationService.showDetected(RoadHazard(
-        id: '',
+        id: 'detected-${event.time.microsecondsSinceEpoch}',
         latitude: pos.latitude,
         longitude: pos.longitude,
         type: event.type,
         severity: sev,
         reportCount: 1,
-        firstReported: DateTime.now(),
-        lastReported: DateTime.now(),
+        firstReported: event.time,
+        lastReported: event.time,
       ));
     };
   }
@@ -122,6 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _DashboardPage(det: det, loc: loc, alert: alert),
       const MapScreen(),
       const StatsScreen(),
+      const SettingsScreen(),
     ];
 
     return Scaffold(
@@ -268,6 +273,7 @@ class _BottomNav extends StatelessWidget {
         _NavItem(Icons.dashboard_outlined, 'Dashboard', 0, index, onTap, c),
         _NavItem(Icons.map_outlined, 'Map', 1, index, onTap, c),
         _NavItem(Icons.bar_chart_outlined, 'Stats', 2, index, onTap, c),
+        _NavItem(Icons.settings_outlined, 'Settings', 3, index, onTap, c),
       ]),
     ),
   );

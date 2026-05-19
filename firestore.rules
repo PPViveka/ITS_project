@@ -21,7 +21,9 @@ service cloud.firestore {
       allow update: if request.auth != null
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['reportCount', 'severity', 'lastReported'])
-        && request.resource.data.reportCount == resource.data.reportCount + 1;
+        && request.resource.data.reportCount == resource.data.reportCount + 1
+        && request.resource.data.severity >= 0.0
+        && request.resource.data.severity <= 1.0;
 
       // No deletes from client (admin only via Console)
       allow delete: if false;

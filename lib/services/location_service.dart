@@ -7,17 +7,13 @@ class LocationService extends ChangeNotifier {
   Position? _current;
   StreamSubscription<Position>? _sub;
   bool _tracking = false;
-  String _status = 'idle';
 
   Position? get current => _current;
   bool get tracking => _tracking;
-  String get status => _status;
 
   Future<bool> requestPermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      _status = 'Location services disabled';
-      notifyListeners();
       return false;
     }
 
@@ -26,8 +22,6 @@ class LocationService extends ChangeNotifier {
       perm = await Geolocator.requestPermission();
     }
     if (perm == LocationPermission.deniedForever) {
-      _status = 'Permission permanently denied';
-      notifyListeners();
       return false;
     }
     return perm == LocationPermission.always ||
@@ -40,7 +34,6 @@ class LocationService extends ChangeNotifier {
     if (!granted) return;
 
     _tracking = true;
-    _status = 'tracking';
     notifyListeners();
 
     const settings = LocationSettings(
@@ -54,8 +47,7 @@ class LocationService extends ChangeNotifier {
         notifyListeners();
       },
       onError: (e) {
-        _status = 'Location error: $e';
-        notifyListeners();
+        debugPrint('Location error: $e');
       },
     );
   }
@@ -64,7 +56,6 @@ class LocationService extends ChangeNotifier {
     await _sub?.cancel();
     _sub = null;
     _tracking = false;
-    _status = 'stopped';
     notifyListeners();
   }
 

@@ -1,45 +1,59 @@
 // lib/services/proximity_service.dart
 //
-// Runs a periodic check: if the user is within ALERT_RADIUS metres of a known
+// Runs a periodic check: if the user is within alertRadius metres of a known
 // hazard and hasn't been alerted for it recently, it fires a local notification.
 //
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/road_hazard.dart';
 import '../services/alert_service.dart';
 import '../services/location_service.dart';
 import '../services/notification_service.dart';
 
-class ProximityService extends ChangeNotifier {
-  static const double alertRadius = 250.0; // metres
+class ProximityService {
+  static const double _defaultAlertRadius = 250.0; // metres
   static const Duration _checkInterval = Duration(seconds: 8);
+  static const Duration _renotifyAfter = Duration(minutes: 5);
 
   final LocationService _loc;
   final AlertService _alert;
 
   Timer? _timer;
   bool _running = false;
+  double _alertRadius = _defaultAlertRadius;
 
-  // Tracks which hazard IDs we've already notified so we don't spam
+  // Tracks notified hazard IDs so we don't spam, and the timers that
+  // re-arm them — held so we can cancel on dispose.
   final Set<String> _notified = {};
+  final Map<String, Timer> _reset = {};
 
-  ProximityService(this._loc, this._alert);
+  ProximityService(this._loc, this._alert) {
+    _loadSettings();
+  }
 
   bool get running => _running;
+  double get alertRadius => _alertRadius;
+
+  Future<void> _loadSettings() async {
+    final p = await SharedPreferences.getInstance();
+    _alertRadius = p.getDouble('alert_radius') ?? _defaultAlertRadius;
+  }
+
+  void updateAlertRadius(double metres) {
+    _alertRadius = metres;
+  }
 
   void start() {
     if (_running) return;
     _running = true;
     _timer = Timer.periodic(_checkInterval, (_) => _check());
-    notifyListeners();
   }
 
   void stop() {
     _timer?.cancel();
     _timer = null;
     _running = false;
-    notifyListeners();
   }
 
   Future<void> _check() async {
@@ -54,20 +68,24 @@ class ProximityService extends ChangeNotifier {
         hazard.latitude, hazard.longitude,
       );
 
-      if (dist <= alertRadius) {
+      if (dist <= _alertRadius) {
         _notified.add(hazard.id);
         await NotificationService.showHazardAhead(hazard, dist);
-        // Remove from notified set after 5 min so it can fire again
-        Future.delayed(const Duration(minutes: 5), () {
+        _reset[hazard.id]?.cancel();
+        _reset[hazard.id] = Timer(_renotifyAfter, () {
           _notified.remove(hazard.id);
+          _reset.remove(hazard.id);
         });
       }
     }
   }
 
-  @override
   void dispose() {
     _timer?.cancel();
-    super.dispose();
+    for (final t in _reset.values) {
+      t.cancel();
+    }
+    _reset.clear();
+    _notified.clear();
   }
 }
