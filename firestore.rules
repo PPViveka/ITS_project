@@ -1,0 +1,35 @@
+// firestore.rules
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /hazards/{hazardId} {
+      // Anyone can read hazards (public road data)
+      allow read: if true;
+
+      // Only authenticated users can create new hazards
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasAll(['latitude','longitude','type','severity','reportCount','firstReported','lastReported'])
+        && request.resource.data.latitude is float
+        && request.resource.data.longitude is float
+        && request.resource.data.type in [0, 1, 2]
+        && request.resource.data.severity >= 0.0
+        && request.resource.data.severity <= 1.0
+        && request.resource.data.reportCount == 1;
+
+      // Only authenticated users can update (increment reportCount / severity)
+      allow update: if request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['reportCount', 'severity', 'lastReported'])
+        && request.resource.data.reportCount == resource.data.reportCount + 1;
+
+      // No deletes from client (admin only via Console)
+      allow delete: if false;
+    }
+
+    // Users collection for profile / report history
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

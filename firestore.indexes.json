@@ -1,0 +1,29 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "hazards",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "type",      "order": "ASCENDING"  },
+        { "fieldPath": "latitude",  "order": "ASCENDING"  }
+      ]
+    },
+    {
+      "collectionGroup": "hazards",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "latitude",    "order": "ASCENDING"  },
+        { "fieldPath": "lastReported","order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "hazards",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "reportedBy",  "order": "ASCENDING"  },
+        { "fieldPath": "lastReported","order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

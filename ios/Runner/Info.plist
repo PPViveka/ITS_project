@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ios/Runner/Info.plist -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Location permissions -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Road Guard uses your location to log hazard positions and alert you about nearby road issues.</string>
+
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>Road Guard uses background location to detect bumps and alert you about hazards even when the app is minimized.</string>
+
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>Road Guard needs background location to monitor road conditions while driving.</string>
+
+    <!-- Motion / accelerometer -->
+    <key>NSMotionUsageDescription</key>
+    <string>Road Guard uses the accelerometer to detect potholes and speed breakers automatically.</string>
+
+    <!-- App display -->
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+
+    <key>CFBundleDisplayName</key>
+    <string>Road Guard</string>
+
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+
+    <key>CFBundleName</key>
+    <string>speed_breaker_alert</string>
+
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>$(FLUTTER_BUILD_NAME)</string>
+
+    <key>CFBundleSignature</key>
+    <string>????</string>
+
+    <key>CFBundleVersion</key>
+    <string>$(FLUTTER_BUILD_NUMBER)</string>
+
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+
+    <!-- Background modes for location + fetch -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>location</string>
+        <string>fetch</string>
+    </array>
+
+    <key>UILaunchStoryboardName</key>
+    <string>LaunchScreen</string>
+
+    <key>UIMainStoryboardFile</key>
+    <string>Main</string>
+
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+
+    <key>UIViewControllerBasedStatusBarAppearance</key>
+    <false/>
+
+    <!-- Google Maps for iOS -->
+    <!-- ⚠️  Replace YOUR_GOOGLE_MAPS_IOS_API_KEY below -->
+    <key>GMSApiKey</key>
+    <string>YOUR_GOOGLE_MAPS_IOS_API_KEY</string>
+</dict>
+</plist>

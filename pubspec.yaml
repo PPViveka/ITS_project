@@ -1,0 +1,47 @@
+name: speed_breaker_alert
+description: Crowdsourced Speed Breaker & Pothole Alert System
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase
+  firebase_core: ^3.0.0
+  firebase_auth: ^5.0.0
+  cloud_firestore: ^5.0.0
+
+  # Sensors & Location
+  sensors_plus: ^4.0.2
+  geolocator: ^11.0.0
+  google_maps_flutter: ^2.5.3
+
+  # Background detection
+  flutter_background_service: ^5.0.5
+
+  # Offline support
+  shared_preferences: ^2.2.2
+  connectivity_plus: ^5.0.2
+
+  # UI & Utils
+  cupertino_icons: ^1.0.6
+  flutter_local_notifications: ^16.3.2
+  permission_handler: ^11.2.0
+  intl: ^0.19.0
+  uuid: ^4.3.3
+  provider: ^6.1.1
+  http: ^1.6.0
+  flutter_map: ^8.3.0
+  latlong2: ^0.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
