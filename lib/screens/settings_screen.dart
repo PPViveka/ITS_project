@@ -1,6 +1,10 @@
 // lib/screens/settings_screen.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/background_service.dart';
+import '../services/detection_service.dart';
+import '../services/speed_gate.dart';
 import 'home_screen.dart' show AppColors;
 
 class SettingsScreen extends StatefulWidget {
@@ -46,6 +50,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await p.setBool('vibrate', _vibrate);
     await p.setBool('sound', _sound);
     await p.setDouble('min_speed', _minSpeed);
+
+    // Push live changes to running services.
+    if (!mounted) return;
+    context.read<DetectionService>().updateSensitivity(_sensitivityThresh);
+    context.read<SpeedGate>().updateMinSpeed(_minSpeed);
+
+    final running = await BackgroundDetectionService.isRunning();
+    if (_backgroundDetection && !running) {
+      await BackgroundDetectionService.start();
+    } else if (!_backgroundDetection && running) {
+      await BackgroundDetectionService.stop();
+    }
   }
 
   @override
@@ -109,7 +125,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   label: 'Alert radius',
                   subtitle: 'Distance at which to notify about incoming hazards',
                   value: _alertRadius,
-                  min: 100, max: 600, divisions: 10,
+                  min: 100, max: 600, divisions: 5,
                   unit: ' m',
                   color: c.safe,
                   c: c,

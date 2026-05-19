@@ -1,7 +1,15 @@
 // lib/firebase_options.dart
-// ⚠️  REPLACE ALL VALUES BELOW with your actual Firebase project config.
-// Generate this file by running: flutterfire configure
-// https://firebase.google.com/docs/flutter/setup
+//
+// ============================================================================
+// ⚠️  REQUIRED: this file contains PLACEHOLDERS, not real Firebase config.
+// The app will boot but Firestore writes will silently fail until you run:
+//
+//     dart pub global activate flutterfire_cli
+//     flutterfire configure
+//
+// This regenerates the file with your project's real apiKey / appId / etc.
+// Without it, AlertService falls back to mock data and reportHazard() no-ops.
+// ============================================================================
 
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'

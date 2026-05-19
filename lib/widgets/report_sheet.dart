@@ -165,20 +165,29 @@ class _ReportSheetState extends State<ReportSheet> {
   Future<void> _submit() async {
     final loc = context.read<LocationService>();
     final alert = context.read<AlertService>();
+    final messenger = ScaffoldMessenger.of(context);
     final pos = loc.current;
     if (pos == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('GPS not ready yet. Try again.')),
       );
       return;
     }
     setState(() => _submitting = true);
-    await alert.reportHazard(
-      lat: pos.latitude,
-      lng: pos.longitude,
-      type: _selected,
-      severity: _severity,
-    );
-    if (mounted) Navigator.pop(context);
+    try {
+      await alert.reportHazard(
+        lat: pos.latitude,
+        lng: pos.longitude,
+        type: _selected,
+        severity: _severity,
+      );
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Report failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 }

@@ -1,9 +1,6 @@
 // lib/services/background_service.dart
 //
 // Keeps the accelerometer + GPS running when the app is in the background.
-// Uses flutter_background_service (add to pubspec.yaml):
-//   flutter_background_service: ^5.0.5
-//
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
@@ -65,7 +62,6 @@ class BackgroundDetectionService {
     const breakerThresh = 12.0;
     final buffer = <double>[];
 
-    // Location stream
     Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
@@ -73,7 +69,6 @@ class BackgroundDetectionService {
       ),
     ).listen((pos) => lastPos = pos);
 
-    // Accelerometer stream
     accelerometerEventStream().listen((e) {
       final mag = sqrt(e.x * e.x + e.y * e.y + e.z * e.z);
       final adj = (mag - 9.81).abs();
@@ -85,12 +80,15 @@ class BackgroundDetectionService {
       if (lastPos == null) return;
 
       HazardType? type;
-      if (adj >= potholeThresh) type = HazardType.pothole;
-      else if (adj >= breakerThresh) type = HazardType.speedBreaker;
+      if (adj >= potholeThresh) {
+        type = HazardType.pothole;
+      } else if (adj >= breakerThresh) {
+        type = HazardType.speedBreaker;
+      }
 
       if (type != null) {
         lastDetected = now;
-        _saveToFirestore(lastPos!, type, adj);
+        _saveOrMergeToFirestore(lastPos!, type, adj);
         service.invoke('update_notification', {
           'content': '${type.emoji} ${type.label} detected & reported!',
         });
@@ -98,23 +96,56 @@ class BackgroundDetectionService {
     });
   }
 
-  static Future<void> _saveToFirestore(
+  /// Background-isolate-safe report path that mirrors AlertService's
+  /// 50m duplicate-merge behavior so background detections don't pollute
+  /// the collection with redundant docs.
+  static Future<void> _saveOrMergeToFirestore(
       Position pos, HazardType type, double magnitude) async {
     try {
       if (Firebase.apps.isEmpty) return;
       final db = FirebaseFirestore.instance;
       final sev = (magnitude / 25.0).clamp(0.0, 1.0);
-      await db.collection('hazards').doc(const Uuid().v4()).set({
-        'latitude': pos.latitude,
-        'longitude': pos.longitude,
-        'type': type.index,
-        'severity': sev,
-        'reportCount': 1,
-        'firstReported': Timestamp.now(),
-        'lastReported': Timestamp.now(),
-        'source': 'background',
-      });
-    } catch (_) {}
+      const deg = 0.0005; // ~55m
+
+      final snap = await db
+          .collection('hazards')
+          .where('type', isEqualTo: type.index)
+          .where('latitude', isGreaterThan: pos.latitude - deg)
+          .where('latitude', isLessThan: pos.latitude + deg)
+          .get();
+
+      QueryDocumentSnapshot<Map<String, dynamic>>? match;
+      for (final d in snap.docs) {
+        final lng = (d.data()['longitude'] as num?)?.toDouble();
+        if (lng != null && (lng - pos.longitude).abs() < deg) {
+          match = d;
+          break;
+        }
+      }
+
+      if (match != null) {
+        final existingSev = (match.data()['severity'] as num?)?.toDouble() ?? 0.0;
+        final existingCount = (match.data()['reportCount'] as num?)?.toInt() ?? 1;
+        await match.reference.update({
+          'reportCount': existingCount + 1,
+          'severity': sev > existingSev ? sev : existingSev,
+          'lastReported': Timestamp.now(),
+        });
+      } else {
+        await db.collection('hazards').doc(const Uuid().v4()).set({
+          'latitude': pos.latitude,
+          'longitude': pos.longitude,
+          'type': type.index,
+          'severity': sev,
+          'reportCount': 1,
+          'firstReported': Timestamp.now(),
+          'lastReported': Timestamp.now(),
+          'source': 'background',
+        });
+      }
+    } catch (e) {
+      debugPrint('Background save failed: $e');
+    }
   }
 
   static Future<void> start() async {

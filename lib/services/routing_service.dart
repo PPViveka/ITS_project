@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as dart_math;
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import '../models/road_hazard.dart';
@@ -21,7 +22,8 @@ class RouteOption {
 }
 
 class RoutingService {
-  static const _baseUrl = 'http://router.project-osrm.org/route/v1/driving';
+  static const _baseUrl = 'https://router.project-osrm.org/route/v1/driving';
+  static const _hazardProximityMeters = 30.0;
 
   /// Fetches multiple alternative routes from OSRM and calculates a safety score
   /// based on the number of intersecting hazards.
@@ -49,12 +51,11 @@ class RoutingService {
         final dist = (r['distance'] as num).toDouble();
         final dur = (r['duration'] as num).toDouble();
 
-        // Find intersecting hazards
-        // A hazard is intersecting if it is within ~30 meters of any route point.
+        // Find intersecting hazards (within proximity radius of any route point).
         final intersecting = <RoadHazard>{};
         for (final p in points) {
           for (final h in allHazards) {
-            if (_distanceBetween(p.latitude, p.longitude, h.latitude, h.longitude) < 40) {
+            if (_distanceBetween(p.latitude, p.longitude, h.latitude, h.longitude) < _hazardProximityMeters) {
               intersecting.add(h);
             }
           }
@@ -85,7 +86,7 @@ class RoutingService {
 
       return options;
     } catch (e) {
-      print('Routing error: $e');
+      debugPrint('Routing error: $e');
       return [];
     }
   }

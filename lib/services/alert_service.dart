@@ -1,11 +1,13 @@
 // lib/services/alert_service.dart
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/road_hazard.dart';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'offline_queue.dart';
 
 class AlertService extends ChangeNotifier {
   FirebaseFirestore? get _db {
@@ -24,6 +26,7 @@ class AlertService extends ChangeNotifier {
   List<RoadHazard> get nearby => List.unmodifiable(_nearby);
 
   StreamSubscription<QuerySnapshot>? _sub;
+  OfflineQueue? offlineQueue;
 
   // ── Report a new hazard (or increment existing one) ────────────────────
   Future<void> reportHazard({
@@ -34,37 +37,42 @@ class AlertService extends ChangeNotifier {
     String? userId,
   }) async {
     final db = _db;
-    if (db == null) return;
+    if (db == null) {
+      await offlineQueue?.enqueue(lat: lat, lng: lng, type: type, severity: severity);
+      return;
+    }
 
-    // Check for duplicate within ~50 m
-    final existing = await _findNearby(lat, lng, type);
+    final uid = userId ?? FirebaseAuth.instance.currentUser?.uid;
 
-    if (existing != null) {
-      // Increment report count and update severity with weighted average
-      final updated = existing.copyWith(
-        reportCount: existing.reportCount + 1,
-        severity: (existing.severity * existing.reportCount + severity) /
-            (existing.reportCount + 1),
-        lastReported: DateTime.now(),
-      );
-      await db.collection(_col).doc(existing.id).update({
-        'reportCount': updated.reportCount,
-        'severity': updated.severity,
-        'lastReported': Timestamp.fromDate(updated.lastReported),
-      });
-    } else {
-      final hazard = RoadHazard(
-        id: const Uuid().v4(),
-        latitude: lat,
-        longitude: lng,
-        type: type,
-        severity: severity,
-        reportCount: 1,
-        firstReported: DateTime.now(),
-        lastReported: DateTime.now(),
-        reportedBy: userId,
-      );
-      await db.collection(_col).doc(hazard.id).set(hazard.toMap());
+    try {
+      // Check for duplicate within ~50 m
+      final existing = await _findNearby(lat, lng, type);
+
+      if (existing != null) {
+        // Increment report count; keep the worst severity seen.
+        final newSeverity = severity > existing.severity ? severity : existing.severity;
+        await db.collection(_col).doc(existing.id).update({
+          'reportCount': existing.reportCount + 1,
+          'severity': newSeverity,
+          'lastReported': Timestamp.fromDate(DateTime.now()),
+        });
+      } else {
+        final hazard = RoadHazard(
+          id: const Uuid().v4(),
+          latitude: lat,
+          longitude: lng,
+          type: type,
+          severity: severity,
+          reportCount: 1,
+          firstReported: DateTime.now(),
+          lastReported: DateTime.now(),
+          reportedBy: uid,
+        );
+        await db.collection(_col).doc(hazard.id).set(hazard.toMap());
+      }
+    } catch (e) {
+      debugPrint('reportHazard failed, queueing offline: $e');
+      await offlineQueue?.enqueue(lat: lat, lng: lng, type: type, severity: severity);
     }
   }
 
@@ -115,7 +123,15 @@ class AlertService extends ChangeNotifier {
         .snapshots()
         .listen((snap) {
       _nearby = snap.docs
-          .map((d) => RoadHazard.fromFirestore(d))
+          .map((d) {
+            try {
+              return RoadHazard.fromFirestore(d);
+            } catch (e) {
+              debugPrint('Skipping malformed hazard ${d.id}: $e');
+              return null;
+            }
+          })
+          .whereType<RoadHazard>()
           .where((h) =>
               (h.longitude - lng).abs() < deg &&
               // Only show hazards reported in the last 7 days
@@ -145,27 +161,39 @@ class AlertService extends ChangeNotifier {
               isGreaterThan: Timestamp.fromDate(
                   DateTime.now().subtract(const Duration(days: 30))))
           .get();
-      localHazards = snap.docs.map((d) => RoadHazard.fromFirestore(d)).toList();
+      localHazards = snap.docs
+          .map((d) {
+            try {
+              return RoadHazard.fromFirestore(d);
+            } catch (e) {
+              debugPrint('Skipping malformed hazard ${d.id}: $e');
+              return null;
+            }
+          })
+          .whereType<RoadHazard>()
+          .toList();
     }
 
     // Merge in real-world crowdsourced hazards from pre-verified OpenStreetMap data
     if (lat != null && lng != null) {
       final osmHazards = fetchOSMHazards(lat, lng);
       final merged = <String, RoadHazard>{};
-      for (final h in localHazards) merged[h.id] = h;
-      for (final h in osmHazards) merged[h.id] = h;
+      for (final h in localHazards) {
+        merged[h.id] = h;
+      }
+      for (final h in osmHazards) {
+        merged[h.id] = h;
+      }
       return merged.values.toList();
     }
 
     return localHazards;
   }
 
-  /// Returns real OSM-verified road hazards near user coordinates.
+  /// Returns OSM-seeded road hazards near user coordinates.
   /// Note: Live Overpass API is blocked by CORS in Chrome/Flutter Web.
   /// These are actual OSM node IDs verified via server-side query near Bengaluru.
   List<RoadHazard> fetchOSMHazards(double lat, double lng) {
-    // Real OSM speed humps verified near coords 13.028, 77.590 (Bengaluru North)
-    // Source: Overpass query - traffic_calming nodes within 2km
     const realOSMNodes = [
       // id, lat, lng, type (0=speedBreaker, 1=pothole, 2=roughPatch)
       [6390283386, 13.0326702, 77.6011783, 0],
@@ -174,7 +202,6 @@ class AlertService extends ChangeNotifier {
       [6390283401, 13.0202557, 77.5998618, 0],
       [7172909400, 13.0350688, 77.5926667, 0],
       [11011803529, 13.0326304, 77.6015212, 0],
-      // Additional verified Bengaluru potholes & rough patches
       [9001000001, 13.0281,    77.5971,    1],
       [9001000002, 13.0310,    77.5988,    2],
       [9001000003, 13.0245,    77.6048,    1],
@@ -190,7 +217,6 @@ class AlertService extends ChangeNotifier {
     ];
     const severityMap = [0.4, 0.85, 0.65];
 
-    // Filter to only return nodes within 3km of the given coords
     final list = <RoadHazard>[];
     for (final node in realOSMNodes) {
       final nLat = (node[1] as num).toDouble();
@@ -232,7 +258,14 @@ class AlertService extends ChangeNotifier {
         .get();
 
     final candidates = snap.docs
-        .map((d) => RoadHazard.fromFirestore(d))
+        .map((d) {
+          try {
+            return RoadHazard.fromFirestore(d);
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<RoadHazard>()
         .where((h) => (h.longitude - lng).abs() < deg)
         .toList();
 

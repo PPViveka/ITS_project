@@ -30,8 +30,9 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _init() async {
+    final locationService = context.read<LocationService>();
     await NotificationService.init();
-    await context.read<LocationService>().requestPermission();
+    await locationService.requestPermission();
     await Future.delayed(const Duration(milliseconds: 2200));
     if (mounted) Navigator.pushReplacementNamed(context, '/home');
   }

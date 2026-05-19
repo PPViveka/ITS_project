@@ -81,10 +81,5 @@
 
     <key>UIViewControllerBasedStatusBarAppearance</key>
     <false/>
-
-    <!-- Google Maps for iOS -->
-    <!-- ⚠️  Replace YOUR_GOOGLE_MAPS_IOS_API_KEY below -->
-    <key>GMSApiKey</key>
-    <string>YOUR_GOOGLE_MAPS_IOS_API_KEY</string>
 </dict>
 </plist>

@@ -36,6 +36,12 @@ class _MapScreenState extends State<MapScreen> {
     _loadData();
   }
 
+  @override
+  void dispose() {
+    _mapCtrl.dispose();
+    super.dispose();
+  }
+
   Position? _lastPos;
 
   @override
@@ -208,7 +214,11 @@ class _MapScreenState extends State<MapScreen> {
           IconButton(
             icon: Icon(Icons.refresh, color: c.textSecondary),
             onPressed: () {
-              setState(() { _destination = null; _routes.clear(); _polylines.clear(); });
+              setState(() {
+                _destination = null;
+                _routes = [];
+                _polylines = [];
+              });
               _loadData();
             },
           ),
